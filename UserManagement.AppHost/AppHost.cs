@@ -10,7 +10,6 @@ var builder = DistributedApplication.CreateBuilder(args);
 var envConfig = new Dictionary<string, string>
 {
     // ASP.NET Core runtime
-    //
     // SQL Server password stored in env variable
     ["SQLSERVER-PASSWORD"] = "Strong@12345",
 
