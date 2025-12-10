@@ -4,9 +4,6 @@ using System.Collections.Generic;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
-// ================================
-// 1. Environment & Configuration
-// ================================
 var envConfig = new Dictionary<string, string>
 {
     // ASP.NET Core runtime
@@ -36,19 +33,15 @@ var envConfig = new Dictionary<string, string>
     ["ASPIRE_ALLOW_UNSECURED_TRANSPORT"] = "true"
 };
 
-// Add configuration
 builder.Configuration.AddInMemoryCollection(envConfig);
 
-// Set OS environment variables for child containers/processes
 foreach (var kv in envConfig)
 {
     Environment.SetEnvironmentVariable(kv.Key, kv.Value, EnvironmentVariableTarget.Process);
     Environment.SetEnvironmentVariable(kv.Key.Replace(":", "__"), kv.Value, EnvironmentVariableTarget.Process);
 }
 
-// ================================
-// 2. Start SQL Server via Package
-// ================================
+
 var sqlPasswordParam = builder.AddParameter("SQLSERVER-PASSWORD", "Strong@12345");
 
 var sqlServer = builder.AddSqlServer("sqlserver", port: 1433)
@@ -57,38 +50,20 @@ var sqlServer = builder.AddSqlServer("sqlserver", port: 1433)
 
 var db = sqlServer.AddDatabase("PMS");
 
-// ================================
-// 3. Start RabbitMQ via Package
-// ================================
 var rabbitContainer = builder.AddRabbitMQ("rabbit");
 
-// ================================
-// 4. Start Redis Cache
-// ================================
-var cache = builder.AddRedis("cache");
-
-// ================================
-// 5. API Service
-// ================================
 var apiService = builder.AddProject<Projects.UserManagement_ApiService>("apiservice")
     .WithHttpHealthCheck("/health")
     .WithReference(db)
     .WaitFor(db)
     .WithReference(rabbitContainer)
-    .WaitFor(rabbitContainer)
-    .WithReference(cache)
-    .WaitFor(cache);
+    .WaitFor(rabbitContainer);
 
-// ================================
-// 6. Web Frontend
-// ================================
+
 builder.AddProject<Projects.UserManagement_Web>("webfrontend")
     .WithExternalHttpEndpoints()
     .WithHttpHealthCheck("/health")
     .WithReference(apiService)
     .WaitFor(apiService);
 
-// ================================
-// 7. Build & Run
-// ================================
 builder.Build().Run();
