@@ -38,15 +38,21 @@ namespace UserManagement.ApiService.Configrations
         {
             #region Database Context Registration
             builder.Register(context =>
-            {
-                var config = context.Resolve<IConfiguration>();
-                var connectionString = config.GetConnectionString("DefaultConnection");
-                var options = new DbContextOptionsBuilder<Context>()
-                    .UseSqlServer(connectionString)
-                    .Options;
-            
-                return new Context(options);
-            }).As<Context>().InstancePerLifetimeScope();
+                {
+                    var config = context.Resolve<IConfiguration>();
+                    var connectionString = config.GetConnectionString("DefaultConnection");
+
+                    var optionsBuilder = new DbContextOptionsBuilder<Context>();
+                    optionsBuilder.UseSqlServer(connectionString);
+
+                    return optionsBuilder.Options;
+                })
+                .As<DbContextOptions<Context>>()
+                .InstancePerLifetimeScope();
+
+            builder.RegisterType<Context>()
+                .AsSelf()
+                .InstancePerLifetimeScope();
             #endregion
 
             #region Services Registration

@@ -4,26 +4,27 @@ using System.Collections.Generic;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
-// Map the Docker Compose environment into AppHost configuration.
-// Use colon-separated keys for IConfiguration and also set OS env vars (double-underscore form)
-// so child processes/containers that read env-vars can find them.
+// ================================
+// 1. Environment & Configuration
+// ================================
 var envConfig = new Dictionary<string, string>
 {
     // ASP.NET Core runtime
-    ["ASPNETCORE_ENVIRONMENT"] = "Development",
-    ["ASPNETCORE_URLS"] = "http://+:8080",
+    //
+    // SQL Server password stored in env variable
+    ["SQLSERVER-PASSWORD"] = "Strong@12345",
 
-    // Connection strings (IConfiguration keys use ':' for nesting)
+    // Connection strings using env variable
     ["ConnectionStrings:DefaultConnection"] = "Server=sqlserver,1433;Database=PMS;User Id=sa;Password=Strong@12345;TrustServerCertificate=True;",
     ["ConnectionStrings:CAP-SQLConnection"] = "Server=sqlserver,1433;Database=PMS;User Id=sa;Password=Strong@12345;TrustServerCertificate=True;",
     ["ConnectionStrings:HangfireConnection"] = "Server=sqlserver,1433;Database=PMS;User Id=sa;Password=Strong@12345;TrustServerCertificate=True;",
 
-    // App secrets / keys
+    // App secrets
     ["JWTSettings:SecretKey"] = "qwertyuiop[]asd124tgqrweee15364qfwretryutiyuryrterdvfn",
     ["OTPSettings:SecretKey"] = "qwertyuiop[UsersOtp]asd124tgqrweee15364qfwretryutiyuryrterdvfn",
     ["EmailPasswords"] = "vxfdhstkqegcfnei - csxyokaorioanxek - 11223344Upskilling",
 
-    // CAP / RabbitMQ settings
+    // CAP / RabbitMQ
     ["Cap:RabbitMQ:HostName"] = "rabbitmq",
     ["Cap:RabbitMQ:Port"] = "5672",
     ["Cap:RabbitMQ:UserName"] = "user",
@@ -32,40 +33,63 @@ var envConfig = new Dictionary<string, string>
     ["Cap:DefaultGroupName"] = "Cap.queue",
     ["Cap:FailedRetryCount"] = "5",
 
-    // Additional settings
+    // Allow unsecured transport
     ["ASPIRE_ALLOW_UNSECURED_TRANSPORT"] = "true"
 };
 
-// Add to the DistributedApplication configuration so projects receive these values via IConfiguration
+// Add configuration
 builder.Configuration.AddInMemoryCollection(envConfig);
 
-// Also set OS environment variables — some container runtimes or child processes expect env-style keys.
-// We set both "Key" and "Key" with double-underscore replacing ':' for compatibility with Docker/Compose style.
+// Set OS environment variables for child containers/processes
 foreach (var kv in envConfig)
 {
-    // Set the colon form (usable by IConfiguration when reading from env)
     Environment.SetEnvironmentVariable(kv.Key, kv.Value, EnvironmentVariableTarget.Process);
-
-    // Set the Docker-compose style double-underscore form as well (useful for external tools)
-    var dockerStyleKey = kv.Key.Replace(":", "__");
-    Environment.SetEnvironmentVariable(dockerStyleKey, kv.Value, EnvironmentVariableTarget.Process);
+    Environment.SetEnvironmentVariable(kv.Key.Replace(":", "__"), kv.Value, EnvironmentVariableTarget.Process);
 }
 
+// ================================
+// 2. Start SQL Server via Package
+// ================================
+var sqlPasswordParam = builder.AddParameter("SQLSERVER-PASSWORD", "Strong@12345");
+
+var sqlServer = builder.AddSqlServer("sqlserver", port: 1433)
+    .WithPassword(sqlPasswordParam)
+    .WithDataVolume();
+
+var db = sqlServer.AddDatabase("PMS");
+
+// ================================
+// 3. Start RabbitMQ via Package
+// ================================
+var rabbitContainer = builder.AddRabbitMQ("rabbit");
+
+// ================================
+// 4. Start Redis Cache
+// ================================
 var cache = builder.AddRedis("cache");
 
+// ================================
+// 5. API Service
+// ================================
 var apiService = builder.AddProject<Projects.UserManagement_ApiService>("apiservice")
-    .WithHttpHealthCheck("/health");
+    .WithHttpHealthCheck("/health")
+    .WithReference(db)
+    .WaitFor(db)
+    .WithReference(rabbitContainer)
+    .WaitFor(rabbitContainer)
+    .WithReference(cache)
+    .WaitFor(cache);
 
-// If your AppHost supports declaring container images for infrastructure services (sqlserver/rabbitmq),
-// prefer using built-in helpers (e.g. builder.AddImage/AddContainer) to start them and make apiService WaitFor them.
-// If not available, ensure sqlserver/rabbitmq are started externally and reachable by the above connection strings.
-
+// ================================
+// 6. Web Frontend
+// ================================
 builder.AddProject<Projects.UserManagement_Web>("webfrontend")
     .WithExternalHttpEndpoints()
     .WithHttpHealthCheck("/health")
-    .WithReference(cache)
-    .WaitFor(cache)
     .WithReference(apiService)
     .WaitFor(apiService);
 
+// ================================
+// 7. Build & Run
+// ================================
 builder.Build().Run();
