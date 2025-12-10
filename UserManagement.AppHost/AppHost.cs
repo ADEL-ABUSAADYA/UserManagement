@@ -14,9 +14,9 @@ var envConfig = new Dictionary<string, string>
     ["SQLSERVER-PASSWORD"] = "Strong@12345",
 
     // Connection strings using env variable
-    ["ConnectionStrings:DefaultConnection"] = "Server=sqlserver,1433;Database=PMS;User Id=sa;Password=Strong@12345;TrustServerCertificate=True;",
-    ["ConnectionStrings:CAP-SQLConnection"] = "Server=sqlserver,1433;Database=PMS;User Id=sa;Password=Strong@12345;TrustServerCertificate=True;",
-    ["ConnectionStrings:HangfireConnection"] = "Server=sqlserver,1433;Database=PMS;User Id=sa;Password=Strong@12345;TrustServerCertificate=True;",
+    ["ConnectionStrings:DefaultConnection"] = "Server=localhost,1433;Database=PMS;User Id=sa;Password=Strong@12345;TrustServerCertificate=True;",
+    ["ConnectionStrings:CAP-SQLConnection"] = "Server=localhost,1433;Database=PMS;User Id=sa;Password=Strong@12345;TrustServerCertificate=True;",
+    ["ConnectionStrings:HangfireConnection"] = "Server=localhost,1433;Database=PMS;User Id=sa;Password=Strong@12345;TrustServerCertificate=True;",
 
     // App secrets
     ["JWTSettings:SecretKey"] = "qwertyuiop[]asd124tgqrweee15364qfwretryutiyuryrterdvfn",
