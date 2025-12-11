@@ -6,22 +6,18 @@ var builder = DistributedApplication.CreateBuilder(args);
 
 var envConfig = new Dictionary<string, string>
 {
-    // ASP.NET Core runtime
-    // SQL Server password stored in env variable
     ["SQLSERVER-PASSWORD"] = "Strong@12345",
 
-    // Connection strings using env variable
     ["ConnectionStrings:DefaultConnection"] = "Server=localhost,1433;Database=PMS;User Id=sa;Password=Strong@12345;TrustServerCertificate=True;",
     ["ConnectionStrings:CAP-SQLConnection"] = "Server=localhost,1433;Database=PMS;User Id=sa;Password=Strong@12345;TrustServerCertificate=True;",
     ["ConnectionStrings:HangfireConnection"] = "Server=localhost,1433;Database=PMS;User Id=sa;Password=Strong@12345;TrustServerCertificate=True;",
 
-    // App secrets
     ["JWTSettings:SecretKey"] = "qwertyuiop[]asd124tgqrweee15364qfwretryutiyuryrterdvfn",
     ["OTPSettings:SecretKey"] = "qwertyuiop[UsersOtp]asd124tgqrweee15364qfwretryutiyuryrterdvfn",
     ["EmailPasswords"] = "vxfdhstkqegcfnei - csxyokaorioanxek - 11223344Upskilling",
 
-    // CAP / RabbitMQ
-    ["Cap:RabbitMQ:HostName"] = "rabbitmq",
+    // CAP / RabbitMQ: استخدم اسم الخدمة وليس localhost
+    ["Cap:RabbitMQ:HostName"] = "rabbit",
     ["Cap:RabbitMQ:Port"] = "5672",
     ["Cap:RabbitMQ:UserName"] = "user",
     ["Cap:RabbitMQ:Password"] = "password",
@@ -29,7 +25,6 @@ var envConfig = new Dictionary<string, string>
     ["Cap:DefaultGroupName"] = "Cap.queue",
     ["Cap:FailedRetryCount"] = "5",
 
-    // Allow unsecured transport
     ["ASPIRE_ALLOW_UNSECURED_TRANSPORT"] = "true"
 };
 
@@ -41,17 +36,17 @@ foreach (var kv in envConfig)
     Environment.SetEnvironmentVariable(kv.Key.Replace(":", "__"), kv.Value, EnvironmentVariableTarget.Process);
 }
 
-
+// SQL Server container
 var sqlPasswordParam = builder.AddParameter("SQLSERVER-PASSWORD", "Strong@12345");
-
 var sqlServer = builder.AddSqlServer("sqlserver", port: 1433)
     .WithPassword(sqlPasswordParam)
     .WithDataVolume();
-
 var db = sqlServer.AddDatabase("PMS");
 
+// RabbitMQ container: تأكد من أن اسم المستخدم وكلمة المرور يتطابقان
 var rabbitContainer = builder.AddRabbitMQ("rabbit");
 
+// API Service
 var apiService = builder.AddProject<Projects.UserManagement_ApiService>("apiservice")
     .WithHttpHealthCheck("/health")
     .WithReference(db)
@@ -59,7 +54,7 @@ var apiService = builder.AddProject<Projects.UserManagement_ApiService>("apiserv
     .WithReference(rabbitContainer)
     .WaitFor(rabbitContainer);
 
-
+// Web Frontend
 builder.AddProject<Projects.UserManagement_Web>("webfrontend")
     .WithExternalHttpEndpoints()
     .WithHttpHealthCheck("/health")
